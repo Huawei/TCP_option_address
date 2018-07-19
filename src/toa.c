@@ -426,6 +426,23 @@ static const struct file_operations toa_stats_fops = {
 };
 
 /*
+ * Get kallsyms_lookup_name function address
+ */
+unsigned long (*kallsyms_lookup_name_fun)(char *name);
+static int find_kallsyms_lookup_name (void *data, const char *name, struct module *mod, unsigned long addr)
+{
+  if (name != NULL && strcmp (name, "kallsyms_lookup_name") == 0) {
+    kallsyms_lookup_name_fun = addr;
+    return 1;
+  }
+
+  return 0;
+}
+static void get_kallsyms_lookup_name_addr (void)
+{
+  kallsyms_on_each_symbol (find_kallsyms_lookup_name, 0);
+}
+/*
  * TOA module init and destory
  */
 
@@ -439,12 +456,18 @@ toa_init(void)
 		return 1;
 	proc_create("toa_stats", 0, init_net.proc_net, &toa_stats_fops);
 
+	get_kallsyms_lookup_name_addr();
+	if (kallsyms_lookup_name_fun == NULL)
+    {
+      printk (KERN_INFO "can't get kallget addr\n");
+      return 0;
+    }
 	/* get the address of function sock_def_readable
 	 * so later we can know whether the sock is for rpc, tux or others
 	 */
-	sk_data_ready_addr = kallsyms_lookup_name("sock_def_readable");
+	sk_data_ready_addr = kallsyms_lookup_name_fun("sock_def_readable");
 	TOA_INFO("CPU [%u] sk_data_ready_addr = "
-		"kallsyms_lookup_name(sock_def_readable) = %lu\n",
+		"kallsyms_lookup_name_fun(sock_def_readable) = %lu\n",
 		 smp_processor_id(), sk_data_ready_addr);
 	if (0 == sk_data_ready_addr) {
 		TOA_INFO("cannot find sock_def_readable.\n");
