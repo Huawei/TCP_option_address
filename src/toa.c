@@ -98,9 +98,15 @@ static void *get_toa_data(struct sk_buff *skb)
  *  try to get local address
  * @return return what the original inet_getname() returns.
  */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0)
+static int
+inet_getname_toa(struct socket *sock, struct sockaddr *uaddr,
+		int peer)
+#else
 static int
 inet_getname_toa(struct socket *sock, struct sockaddr *uaddr,
 		int *uaddr_len, int peer)
+#endif
 {
 	int retval = 0;
 	struct sock *sk = sock->sk;
@@ -111,10 +117,18 @@ inet_getname_toa(struct socket *sock, struct sockaddr *uaddr,
 		sk->sk_user_data);
 
 	/* call orginal one */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0)
+	retval = inet_getname(sock, uaddr, peer);
+#else
 	retval = inet_getname(sock, uaddr, uaddr_len, peer);
+#endif
 
 	/* set our value if need */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0)
+	if (retval > 0 && NULL != sk->sk_user_data && peer) {
+#else
 	if (retval == 0 && NULL != sk->sk_user_data && peer) {
+#endif
 		if (sk_data_ready_addr == (unsigned long) sk->sk_data_ready) {
 			memcpy(&tdata, &sk->sk_user_data, sizeof(tdata));
 			if (TCPOPT_TOA == tdata.opcode &&
@@ -148,9 +162,15 @@ inet_getname_toa(struct socket *sock, struct sockaddr *uaddr,
 }
 
 #ifdef CONFIG_IP_VS_TOA_IPV6
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0)
+static int
+inet6_getname_toa(struct socket *sock, struct sockaddr *uaddr,
+		  int peer)
+#else
 static int
 inet6_getname_toa(struct socket *sock, struct sockaddr *uaddr,
 		  int *uaddr_len, int peer)
+#endif
 {
 	int retval = 0;
 	struct sock *sk = sock->sk;
@@ -161,10 +181,18 @@ inet6_getname_toa(struct socket *sock, struct sockaddr *uaddr,
 		sk->sk_user_data);
 
 	/* call orginal one */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0)
+	retval = inet6_getname(sock, uaddr, peer);
+#else
 	retval = inet6_getname(sock, uaddr, uaddr_len, peer);
+#endif
 
 	/* set our value if need */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0)
+	if (retval > 0 && NULL != sk->sk_user_data && peer) {
+#else
 	if (retval == 0 && NULL != sk->sk_user_data && peer) {
+#endif
 		if (sk_data_ready_addr == (unsigned long) sk->sk_data_ready) {
 			memcpy(&tdata, &sk->sk_user_data, sizeof(tdata));
 			if (TCPOPT_TOA == tdata.opcode &&
