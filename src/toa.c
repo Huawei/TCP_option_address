@@ -295,9 +295,10 @@ tcp_v6_syn_recv_sock_toa(struct sock *sk, struct sk_buff *skb,
 static inline int
 hook_toa_functions(void)
 {
+#if (!defined __aarch64__) && (LINUX_VERSION_CODE < KERNEL_VERSION(4,18,0))
 	unsigned int level;
 	pte_t *pte;
-
+#endif
 	/* hook inet_getname for ipv4 */
 	struct proto_ops *inet_stream_ops_p =
 			(struct proto_ops *)&inet_stream_ops;
@@ -312,14 +313,14 @@ hook_toa_functions(void)
 	struct inet_connection_sock_af_ops *ipv6_specific_p =
 			(struct inet_connection_sock_af_ops *)&ipv6_specific;
 #endif
-
+#if (!defined __aarch64__) && (LINUX_VERSION_CODE < KERNEL_VERSION(4,18,0))
 	pte = lookup_address((unsigned long )inet_stream_ops_p, &level);
 	if (pte == NULL)
 		return 1;
 	if (pte->pte & ~_PAGE_RW) {
 		pte->pte |= _PAGE_RW;
 	}
-
+#endif
 	inet_stream_ops_p->getname = inet_getname_toa;
 	TOA_INFO("CPU [%u] hooked inet_getname <%p> --> <%p>\n",
 		smp_processor_id(), inet_getname, inet_stream_ops_p->getname);
@@ -341,12 +342,12 @@ hook_toa_functions(void)
 		smp_processor_id(), tcp_v6_syn_recv_sock,
 		ipv6_specific_p->syn_recv_sock);
 #endif
-
+#if (!defined __aarch64__) && (LINUX_VERSION_CODE < KERNEL_VERSION(4,18,0))
 	pte = lookup_address((unsigned long )inet_stream_ops_p, &level);
 	if (pte == NULL)
 		return 1;
 	pte->pte |= pte->pte &~_PAGE_RW;
-
+#endif
 	return 0;
 }
 
@@ -354,9 +355,10 @@ hook_toa_functions(void)
 static int
 unhook_toa_functions(void)
 {
+#if (!defined __aarch64__) && (LINUX_VERSION_CODE < KERNEL_VERSION(4,18,0))
 	unsigned int level;
 	pte_t *pte;
-
+#endif
 	/* unhook inet_getname for ipv4 */
 	struct proto_ops *inet_stream_ops_p =
 			(struct proto_ops *)&inet_stream_ops;
@@ -372,14 +374,14 @@ unhook_toa_functions(void)
 	struct inet_connection_sock_af_ops *ipv6_specific_p =
 			(struct inet_connection_sock_af_ops *)&ipv6_specific;
 #endif
-
+#if (!defined __aarch64__) && (LINUX_VERSION_CODE < KERNEL_VERSION(4,18,0))
 	pte = lookup_address((unsigned long )inet_stream_ops_p, &level);
 	if (pte == NULL)
 		return 1;
 	if (pte->pte & ~_PAGE_RW) {
 		pte->pte |= _PAGE_RW;
 	}
-
+#endif
 	inet_stream_ops_p->getname = inet_getname;
 	TOA_INFO("CPU [%u] unhooked inet_getname\n",
 		smp_processor_id());
@@ -399,12 +401,12 @@ unhook_toa_functions(void)
 	TOA_INFO("CPU [%u] unhooked tcp_v6_syn_recv_sock\n",
 		smp_processor_id());
 #endif
-
+#if (!defined __aarch64__) && (LINUX_VERSION_CODE < KERNEL_VERSION(4,18,0))
 	pte = lookup_address((unsigned long )inet_stream_ops_p, &level);
 	if (pte == NULL)
 		return 1;
 	pte->pte |= pte->pte &~_PAGE_RW;
-
+#endif
 	return 0;
 }
 
