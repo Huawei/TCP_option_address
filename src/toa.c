@@ -566,7 +566,7 @@ err:
 		ext_stats = NULL;
 	}
 
-	return 0;
+	return 1;
 }
 
 /* module cleanup*/
