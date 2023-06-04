@@ -530,20 +530,25 @@ toa_init(void)
 		TOA_INFO("cannot find update_mapping_prot.\n");
 		goto err;
 	}
+	TOA_INFO("CPU [%u] update_mapping_prot = %p\n", smp_processor_id(), update_mapping_prot_func);
+
 	if (start_rodata == 0) {
 		start_rodata = (unsigned long)kallsyms_lookup_name("__start_rodata");
 		if (0 == start_rodata) {
-			TOA_INFO("cannot find __start_rodata, please give the parameter of start_rodata\n");
+			TOA_INFO("cannot find __start_rodata, please give the parameter of __start_rodata\n");
 			goto err;
 		}
 	}
+	TOA_INFO("CPU [%u] __start_rodata = %lu\n", smp_processor_id(), start_rodata);
+
 	if (init_begin == 0) {
 		init_begin = (unsigned long)kallsyms_lookup_name("__init_begin");
 		if (0 == init_begin) {
-			TOA_INFO("cannot find __init_begin, please give the parameter of init_begin\n");
+			TOA_INFO("cannot find __init_begin, please give the parameter of __init_begin\n");
 			goto err;
 		}
 	}
+	TOA_INFO("CPU [%u] __init_begin = %lu\n", smp_processor_id(), init_begin);
 #endif
 	/* hook funcs for parse and get toa */
 	if (0 != hook_toa_functions()) {
