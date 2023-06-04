@@ -1,0 +1,1 @@
+cmd_/root/TCP_option_address/src/toa.ko := ld -r  -EL  -maarch64linux -T ./scripts/module-common.lds -T ./arch/arm64/kernel/module.lds  --build-id  -o /root/TCP_option_address/src/toa.ko /root/TCP_option_address/src/toa.o /root/TCP_option_address/src/toa.mod.o ;  true
