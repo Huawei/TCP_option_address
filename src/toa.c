@@ -299,7 +299,7 @@ tcp_v6_syn_recv_sock_toa(struct sock *sk, struct sk_buff *skb,
 #if (defined __aarch64__) && (LINUX_VERSION_CODE >= KERNEL_VERSION(4,18,0))
 static int make_rw(void)
 {
-	if (!start_rodata || !init_begin || !section_size) {
+	if (!start_rodata || !init_begin || init_begin <= start_rodata) {
 		TOA_INFO("skip make_rw.\n");
 		return 1;
 	}
@@ -309,7 +309,7 @@ static int make_rw(void)
 
 static int make_ro(void)
 {
-	if (!start_rodata || !init_begin || !section_size) {
+	if (!start_rodata || !init_begin || init_begin <= start_rodata) {
 		TOA_INFO("skip make_ro.\n");
 		return 1;
 	}
