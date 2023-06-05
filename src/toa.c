@@ -6,7 +6,13 @@
  */
 
 unsigned long sk_data_ready_addr = 0;
-
+#if (defined __aarch64__) && (LINUX_VERSION_CODE >= KERNEL_VERSION(4,18,0))
+void (*update_mapping_prot_func)(phys_addr_t phys, unsigned long virt, phys_addr_t size, pgprot_t prot) = NULL;
+unsigned long start_rodata = 0, init_begin = 0;
+module_param(start_rodata, ulong, S_IRUSR);
+module_param(init_begin, ulong, S_IRUSR);
+#define section_size (init_begin - start_rodata)
+#endif
 /*
  * Statistics of toa in proc /proc/net/toa_stats
  */
@@ -290,14 +296,36 @@ tcp_v6_syn_recv_sock_toa(struct sock *sk, struct sk_buff *skb,
 /*
  * HOOK FUNCS
  */
+#if (defined __aarch64__) && (LINUX_VERSION_CODE >= KERNEL_VERSION(4,18,0))
+static int make_rw(void)
+{
+	if (!start_rodata || !init_begin || init_begin <= start_rodata) {
+		TOA_INFO("skip make_rw.\n");
+		return 1;
+	}
+	update_mapping_prot_func(__pa_symbol(start_rodata), (unsigned long)start_rodata, section_size, PAGE_KERNEL);
+	return 0;
+}
 
+static int make_ro(void)
+{
+	if (!start_rodata || !init_begin || init_begin <= start_rodata) {
+		TOA_INFO("skip make_ro.\n");
+		return 1;
+	}
+	update_mapping_prot_func(__pa_symbol(start_rodata), (unsigned long)start_rodata, section_size, PAGE_KERNEL_RO);
+	return 0;
+
+}
+#endif
 /* replace the functions with our functions */
 static inline int
 hook_toa_functions(void)
 {
+#if (!defined __aarch64__) && (LINUX_VERSION_CODE < KERNEL_VERSION(4,18,0))
 	unsigned int level;
 	pte_t *pte;
-
+#endif
 	/* hook inet_getname for ipv4 */
 	struct proto_ops *inet_stream_ops_p =
 			(struct proto_ops *)&inet_stream_ops;
@@ -312,14 +340,18 @@ hook_toa_functions(void)
 	struct inet_connection_sock_af_ops *ipv6_specific_p =
 			(struct inet_connection_sock_af_ops *)&ipv6_specific;
 #endif
-
+#if (!defined __aarch64__) && (LINUX_VERSION_CODE < KERNEL_VERSION(4,18,0))
 	pte = lookup_address((unsigned long )inet_stream_ops_p, &level);
 	if (pte == NULL)
 		return 1;
 	if (pte->pte & ~_PAGE_RW) {
 		pte->pte |= _PAGE_RW;
 	}
-
+#else
+	if (0 != make_rw()) {
+		return 1;
+	}
+#endif
 	inet_stream_ops_p->getname = inet_getname_toa;
 	TOA_INFO("CPU [%u] hooked inet_getname <%p> --> <%p>\n",
 		smp_processor_id(), inet_getname, inet_stream_ops_p->getname);
@@ -341,11 +373,16 @@ hook_toa_functions(void)
 		smp_processor_id(), tcp_v6_syn_recv_sock,
 		ipv6_specific_p->syn_recv_sock);
 #endif
-
+#if (!defined __aarch64__) && (LINUX_VERSION_CODE < KERNEL_VERSION(4,18,0))
 	pte = lookup_address((unsigned long )inet_stream_ops_p, &level);
 	if (pte == NULL)
 		return 1;
 	pte->pte |= pte->pte &~_PAGE_RW;
+#else
+	if (0 != make_ro()) {
+		return 1;
+	}
+#endif
 
 	return 0;
 }
@@ -354,9 +391,10 @@ hook_toa_functions(void)
 static int
 unhook_toa_functions(void)
 {
+#if (!defined __aarch64__) && (LINUX_VERSION_CODE < KERNEL_VERSION(4,18,0))
 	unsigned int level;
 	pte_t *pte;
-
+#endif
 	/* unhook inet_getname for ipv4 */
 	struct proto_ops *inet_stream_ops_p =
 			(struct proto_ops *)&inet_stream_ops;
@@ -372,14 +410,18 @@ unhook_toa_functions(void)
 	struct inet_connection_sock_af_ops *ipv6_specific_p =
 			(struct inet_connection_sock_af_ops *)&ipv6_specific;
 #endif
-
+#if (!defined __aarch64__) && (LINUX_VERSION_CODE < KERNEL_VERSION(4,18,0))
 	pte = lookup_address((unsigned long )inet_stream_ops_p, &level);
 	if (pte == NULL)
 		return 1;
 	if (pte->pte & ~_PAGE_RW) {
 		pte->pte |= _PAGE_RW;
 	}
-
+#else
+	if (0 != make_rw()) {
+		return 1;
+	}
+#endif
 	inet_stream_ops_p->getname = inet_getname;
 	TOA_INFO("CPU [%u] unhooked inet_getname\n",
 		smp_processor_id());
@@ -399,12 +441,16 @@ unhook_toa_functions(void)
 	TOA_INFO("CPU [%u] unhooked tcp_v6_syn_recv_sock\n",
 		smp_processor_id());
 #endif
-
+#if (!defined __aarch64__) && (LINUX_VERSION_CODE < KERNEL_VERSION(4,18,0))
 	pte = lookup_address((unsigned long )inet_stream_ops_p, &level);
 	if (pte == NULL)
 		return 1;
 	pte->pte |= pte->pte &~_PAGE_RW;
-
+#else
+	if (0 != make_ro()) {
+		return 1;
+	}
+#endif
 	return 0;
 }
 
@@ -478,7 +524,32 @@ toa_init(void)
 		TOA_INFO("cannot find sock_def_readable.\n");
 		goto err;
 	}
+#if (defined __aarch64__) && (LINUX_VERSION_CODE >= KERNEL_VERSION(4,18,0))
+	update_mapping_prot_func = (void *)kallsyms_lookup_name("update_mapping_prot");
+	if (0 == update_mapping_prot_func) {
+		TOA_INFO("cannot find update_mapping_prot.\n");
+		goto err;
+	}
+	TOA_INFO("CPU [%u] update_mapping_prot = %p\n", smp_processor_id(), update_mapping_prot_func);
 
+	if (start_rodata == 0) {
+		start_rodata = (unsigned long)kallsyms_lookup_name("__start_rodata");
+		if (0 == start_rodata) {
+			TOA_INFO("cannot find __start_rodata, please give the parameter of __start_rodata\n");
+			goto err;
+		}
+	}
+	TOA_INFO("CPU [%u] __start_rodata = %lu\n", smp_processor_id(), start_rodata);
+
+	if (init_begin == 0) {
+		init_begin = (unsigned long)kallsyms_lookup_name("__init_begin");
+		if (0 == init_begin) {
+			TOA_INFO("cannot find __init_begin, please give the parameter of __init_begin\n");
+			goto err;
+		}
+	}
+	TOA_INFO("CPU [%u] __init_begin = %lu\n", smp_processor_id(), init_begin);
+#endif
 	/* hook funcs for parse and get toa */
 	if (0 != hook_toa_functions()) {
 		TOA_INFO("cannot hook toa functions.\n");
